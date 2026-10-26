@@ -1,11 +1,11 @@
 plugins {
     `java-gradle-plugin`
     id("com.vanniktech.maven.publish") version "0.37.0"
+    id("net.researchgate.release") version "3.2.0"
     jacoco
 }
 
 group = "org.strangeeons.gradle"
-version = providers.gradleProperty("releaseVersion").getOrElse("0.1.0-SNAPSHOT")
 description = "Packages a JVM project as a Strange Eons plug-in bundle."
 
 repositories {
