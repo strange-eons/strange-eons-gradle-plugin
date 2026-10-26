@@ -65,6 +65,13 @@ mavenPublishing {
     }
 }
 
+release {
+    git {
+        // Review the release commits and tag, then push with --follow-tags.
+        pushToRemote = false
+    }
+}
+
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release = 17
