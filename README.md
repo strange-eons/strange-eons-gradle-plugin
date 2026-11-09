@@ -47,17 +47,10 @@ strangeEonsPlugin {
 The bundle is written to `build/libs/<bundleName>.<bundleType>`.
 
 `catalogTimestamp` defaults to the build time, so every build is new and
-never up to date. Set it to the commit time to make the same commit build the
-same bundle:
-
-```kotlin
-import java.time.OffsetDateTime
-
-strangeEonsPlugin {
-    catalogTimestamp = providers.exec { commandLine("git", "log", "-1", "--format=%cI") }
-        .standardOutput.asText.map { OffsetDateTime.parse(it.trim()).toInstant() }
-}
-```
+never up to date. Set `catalogTimestampFromCommit = true` to stamp the commit
+time of `HEAD` instead, so the same commit builds the same bundle. If the
+project or plug-in folder has uncommitted changes, including untracked files
+that aren't ignored, or git can't tell, the build time is used with a warning.
 
 ## Script plug-ins
 

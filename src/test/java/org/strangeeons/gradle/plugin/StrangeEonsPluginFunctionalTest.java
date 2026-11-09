@@ -244,4 +244,89 @@ class StrangeEonsPluginFunctionalTest {
         run("sePlugin");
         assertArrayEquals(first, Files.readAllBytes(bundle));
     }
+
+    private void git(String... args) throws IOException, InterruptedException {
+        java.util.List<String> cmd = new java.util.ArrayList<>(java.util.List.of("git", "-c", "user.name=t",
+                "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"));
+        cmd.addAll(java.util.List.of(args));
+        ProcessBuilder pb = new ProcessBuilder(cmd).directory(dir.toFile()).redirectErrorStream(true);
+        pb.environment().put("GIT_AUTHOR_DATE", "2026-01-05T03:04:05Z");
+        pb.environment().put("GIT_COMMITTER_DATE", "2026-01-05T03:04:05Z");
+        Process proc = pb.start();
+        String out = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(0, proc.waitFor(), out);
+    }
+
+    private void writeCommittedScriptPlugin() throws IOException, InterruptedException {
+        writeScriptPlugin();
+        write(".gitignore", "build/\n.gradle/\n");
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    catalogTimestampFromCommit = true
+                }
+                """);
+        git("init", "-q");
+        git("add", ".");
+        git("commit", "-q", "-m", "x");
+    }
+
+    private String stampedRoot() throws IOException {
+        try (JarFile jar = new JarFile(dir.resolve("build/libs/demo.seext").toFile())) {
+            return text(jar, "eons-plugin");
+        }
+    }
+
+    @Test
+    void stampsCommitTimeOfCleanCheckout() throws Exception {
+        writeCommittedScriptPlugin();
+        BuildResult r = run("sePlugin");
+        assertFalse(r.getOutput().contains("build time"), r.getOutput());
+        assertTrue(stampedRoot().contains(ID + ":2026-0-5-3-4-5-0}"), stampedRoot());
+        assertEquals(TaskOutcome.UP_TO_DATE, run("sePlugin").task(":generateRootFile").getOutcome());
+    }
+
+    @Test
+    void stampsBuildTimeWithUncommittedChanges() throws Exception {
+        writeCommittedScriptPlugin();
+        write("Game/resources/game/New.js", "x\n");
+        BuildResult r = run("sePlugin");
+        Path real = dir.toRealPath();
+        assertTrue(r.getOutput().contains("Uncommitted changes in " + real + ", " + real.resolve("Game")
+                + "; stamping"), r.getOutput());
+        assertFalse(stampedRoot().contains(ID + ":2026-0-5-3-4-5-0}"), stampedRoot());
+        assertEquals(TaskOutcome.SUCCESS, run("sePlugin").task(":generateRootFile").getOutcome());
+    }
+
+    @Test
+    void stampsBuildTimeOutsideGit() throws Exception {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    catalogTimestampFromCommit = true
+                }
+                """);
+        BuildResult r = run("sePlugin");
+        assertTrue(r.getOutput().contains("Could not read git status"), r.getOutput());
+        assertFalse(stampedRoot().contains("2026-5-3-0-0-0-0"), stampedRoot());
+    }
+
+    @Test
+    void stampsBuildTimeWithoutCommits() throws Exception {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    catalogTimestampFromCommit = true
+                }
+                """);
+        git("init", "-q");
+        write(".git/info/exclude", "*\n");
+        BuildResult r = run("sePlugin");
+        assertTrue(r.getOutput().contains("Could not read the commit time"), r.getOutput());
+    }
 }

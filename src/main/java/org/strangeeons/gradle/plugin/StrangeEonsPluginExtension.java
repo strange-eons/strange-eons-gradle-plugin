@@ -47,6 +47,14 @@ public abstract class StrangeEonsPluginExtension {
     public abstract Property<Instant> getCatalogTimestamp();
 
     /**
+     * Whether {@link #getCatalogTimestamp()} defaults to the commit time of
+     * {@code HEAD}. The build time is used instead, with a warning, when the
+     * project or plug-in folder has uncommitted changes or git can't tell.
+     * Defaults to {@code false}.
+     */
+    public abstract Property<Boolean> getCatalogTimestampFromCommit();
+
+    /**
      * An SE plug-in project folder, holding {@code eons-plugin} and
      * {@code resources/}, for plug-ins made of scripts and resources. Its
      * members are packed as SE's "Make Bundle" command packs them, alongside

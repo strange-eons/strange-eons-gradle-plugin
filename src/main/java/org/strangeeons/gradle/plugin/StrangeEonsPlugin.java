@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.List;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -64,6 +65,15 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
                 .orElse(project.getLayout().getProjectDirectory().file("src/main/resources/" + ROOT_FILE_NAME)));
         ext.getBundleType().convention(ext.getPluginFolder().map(StrangeEonsPlugin::guessType)
                 .orElse(ext.getRootFile().map(f -> guessType(f.getAsFile()))));
+        ext.getCatalogTimestampFromCommit().convention(false);
+        Provider<Instant> commitTime = project.getProviders().of(CommitTime.class, spec -> {
+            spec.getParameters().getWorkingDir().set(project.getLayout().getProjectDirectory());
+            spec.getParameters().getPaths().add(project.getProjectDir().getAbsolutePath());
+            spec.getParameters().getPaths().addAll(ext.getPluginFolder()
+                    .map(d -> List.of(d.getAsFile().getAbsolutePath())).orElse(List.of()));
+        });
+        ext.getCatalogTimestamp().convention(ext.getCatalogTimestampFromCommit()
+                .flatMap(fromCommit -> fromCommit ? commitTime : project.getProviders().provider(() -> null)));
         ext.getUserFolder().convention(project.getLayout().dir(project.getProviders().provider(() -> UserFolder.resolve(
                 System.getenv(), System.getProperty("os.name"), System.getProperty("user.home")))));
 
