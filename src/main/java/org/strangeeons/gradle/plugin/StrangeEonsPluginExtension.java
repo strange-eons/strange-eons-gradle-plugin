@@ -13,6 +13,8 @@ import org.gradle.api.provider.Property;
  *     bundleName = "MyGame"          // MyGame.seext
  *     bundleType = "seext"           // guessed from the root file if unset
  *     rootFile = file("src/main/resources/eons-plugin")
+ *     pluginFolder = file("MyGame")   // a script plug-in's project folder
+ *     versionProperties = "resources/mygame/version.properties"
  * }
  * </pre>
  */
@@ -30,10 +32,25 @@ public abstract class StrangeEonsPluginExtension {
 
     /**
      * The {@code eons-plugin} root file. Its catalog ID is stamped with the
-     * build time when packaged. Defaults to
-     * {@code src/main/resources/eons-plugin}.
+     * build time when packaged. Defaults to the {@link #getPluginFolder()}'s
+     * root file if set, else {@code src/main/resources/eons-plugin}.
      */
     public abstract RegularFileProperty getRootFile();
+
+    /**
+     * An SE plug-in project folder, holding {@code eons-plugin} and
+     * {@code resources/}, for plug-ins made of scripts and resources. Its
+     * members are packed as SE's "Make Bundle" command packs them, alongside
+     * any compiled classes and resources. Optional.
+     */
+    public abstract DirectoryProperty getPluginFolder();
+
+    /**
+     * Path in the bundle of a generated properties file holding
+     * {@code version}, the project version, and {@code se-version}, the float
+     * form SE plug-ins report ({@code 10.0.1} is {@code 10.0}). Optional.
+     */
+    public abstract Property<String> getVersionProperties();
 
     /**
      * The Strange Eons user folder {@code installPlugin} copies into (its

@@ -25,13 +25,15 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 /**
- * Packages a JVM project as a Strange Eons plug-in bundle alongside the
- * plain JAR:
+ * Packages a JVM project, or a script plug-in's project folder, as a Strange
+ * Eons plug-in bundle alongside the plain JAR:
  *
  * <ul>
  * <li>{@code generateRootFile}: writes {@code eons-plugin} with a fresh catalog ID timestamp</li>
- * <li>{@code sePlugin}: builds the bundle from the main classes and resources plus the
- * runtime classpath, merging {@code META-INF/services} (part of {@code assemble})</li>
+ * <li>{@code generateVersionProperties}: writes the version properties file, if configured</li>
+ * <li>{@code sePlugin}: builds the bundle from the main classes and resources, the plug-in
+ * folder and the runtime classpath, merging {@code META-INF/services} (part of
+ * {@code assemble})</li>
  * <li>{@code installPlugin}: copies the bundle into the SE user plug-ins folder</li>
  * </ul>
  *
@@ -44,6 +46,7 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
     public static final String GROUP = "strange eons";
     public static final String EXTENSION_NAME = "strangeEonsPlugin";
     public static final String GENERATE_ROOT_FILE_TASK_NAME = "generateRootFile";
+    public static final String GENERATE_VERSION_PROPERTIES_TASK_NAME = "generateVersionProperties";
     public static final String BUNDLE_TASK_NAME = "sePlugin";
     public static final String INSTALL_TASK_NAME = "installPlugin";
     public static final String ROOT_FILE_NAME = "eons-plugin";
@@ -57,8 +60,10 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
         StrangeEonsPluginExtension ext = project.getExtensions().create(EXTENSION_NAME, StrangeEonsPluginExtension.class);
 
         ext.getBundleName().convention(project.getName());
-        ext.getRootFile().convention(project.getLayout().getProjectDirectory().file("src/main/resources/" + ROOT_FILE_NAME));
-        ext.getBundleType().convention(ext.getRootFile().map(f -> guessType(f.getAsFile())));
+        ext.getRootFile().convention(ext.getPluginFolder().file(ROOT_FILE_NAME)
+                .orElse(project.getLayout().getProjectDirectory().file("src/main/resources/" + ROOT_FILE_NAME)));
+        ext.getBundleType().convention(ext.getPluginFolder().map(StrangeEonsPlugin::guessType)
+                .orElse(ext.getRootFile().map(f -> guessType(f.getAsFile()))));
         ext.getUserFolder().convention(project.getLayout().dir(project.getProviders().provider(() -> UserFolder.resolve(
                 System.getenv(), System.getProperty("os.name"), System.getProperty("user.home")))));
 
@@ -70,6 +75,15 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
                     t.getRootFile().set(project.getLayout().getBuildDirectory().file("generated/strange-eons/" + ROOT_FILE_NAME));
                 });
 
+        TaskProvider<GenerateVersionProperties> version = project.getTasks().register(
+                GENERATE_VERSION_PROPERTIES_TASK_NAME, GenerateVersionProperties.class, t -> {
+                    t.setGroup(GROUP);
+                    t.setDescription("Writes the bundle's version properties file, if versionProperties is set.");
+                    t.getFilePath().set(ext.getVersionProperties());
+                    t.getVersion().set(project.provider(() -> project.getVersion().toString()));
+                    t.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/strange-eons/version"));
+                });
+
         SourceSet main = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets()
                 .getByName(SourceSet.MAIN_SOURCE_SET_NAME);
 
@@ -78,6 +92,12 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
             t.setDescription("Builds the Strange Eons plug-in bundle.");
             t.from(main.getOutput(), spec -> spec.exclude(ROOT_FILE_NAME));
             t.from(generate);
+            t.from(version);
+            t.from(project.files(project.provider(() -> ext.getPluginFolder().isPresent()
+                    ? List.of(ext.getPluginFolder().get()) : List.of())), spec -> {
+                spec.exclude(ROOT_FILE_NAME);
+                spec.exclude(e -> !PluginFolder.isMember(e.getFile()));
+            });
             t.getConfigurations().add(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
             // Same exclusions as Shadow's own shadowJar task.
             t.exclude("META-INF/INDEX.LIST", "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA",
@@ -116,6 +136,14 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
         });
 
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(bundle));
+    }
+
+    private static String guessType(Directory pluginFolder) {
+        try {
+            return PluginFolder.guessType(pluginFolder.getAsFile().toPath());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static String guessType(File rootFile) {

@@ -142,4 +142,76 @@ class StrangeEonsPluginFunctionalTest {
         assertTrue(out.contains("RUNTIME lib-1.jar"), out);
         assertTrue(out.contains("BUNDLE lib.selibrary true"), out);
     }
+
+    private void writeScriptPlugin() throws IOException {
+        write("settings.gradle.kts", "rootProject.name = \"demo\"\n");
+        write("Game/eons-plugin", "id = CATALOGUEID{" + ID + ":2026-5-3-0-0-0-0}\nres://game/Game.js\n");
+        write("Game/resources/game/Game.js", "useLibrary('extension');\n");
+        write("Game/resources/game/Card.ts.js", "x\n");
+        write("Game/resources/.DS_Store", "x");
+        write("Game/README.md", "x\n");
+        write("Game/seproject", "x\n");
+        write("Game/Thumbs.db", "x");
+    }
+
+    @Test
+    void packsScriptPluginFolder() throws IOException {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                version = "10.0.1-SNAPSHOT"
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    versionProperties = "resources/game/version.properties"
+                }
+                """);
+
+        run("sePlugin");
+        try (JarFile jar = new JarFile(dir.resolve("build/libs/demo.seext").toFile())) {
+            String root = text(jar, "eons-plugin");
+            assertTrue(root.startsWith("id = CATALOGUEID{" + ID + ":"), root);
+            assertFalse(root.contains("2026-5-3-0-0-0-0"), root);
+            assertEquals("useLibrary('extension');\n", text(jar, "resources/game/Game.js"));
+            assertEquals("version=10.0.1-SNAPSHOT\nse-version=10.0\n", text(jar, "resources/game/version.properties"));
+            assertNotNull(jar.getEntry("README.md"));
+            for (String name : new String[] {"resources/game/Card.ts.js", "resources/.DS_Store", "seproject",
+                    "Thumbs.db", "Game/eons-plugin"}) {
+                assertNull(jar.getEntry(name), name);
+            }
+        }
+    }
+
+    @Test
+    void dropsVersionPropertiesWhenUnset() throws IOException {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                version = "1.0.0"
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    versionProperties = providers.gradleProperty("vp")
+                }
+                """);
+        run("sePlugin", "-Pvp=resources/game/version.properties");
+        run("sePlugin");
+        try (JarFile jar = new JarFile(dir.resolve("build/libs/demo.seext").toFile())) {
+            assertNull(jar.getEntry("resources/game/version.properties"));
+        }
+    }
+
+    @Test
+    void rejectsVersionPropertiesOutsideBundle() throws IOException {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                plugins { id("org.strangeeons.plugin") }
+                version = "1.0.0"
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    versionProperties = "../version.properties"
+                }
+                """);
+        BuildResult r = GradleRunner.create().withProjectDir(dir.toFile()).withPluginClasspath()
+                .withArguments("sePlugin").buildAndFail();
+        assertTrue(r.getOutput().contains("is not a path in the bundle"), r.getOutput());
+    }
 }

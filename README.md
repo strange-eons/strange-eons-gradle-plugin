@@ -1,16 +1,19 @@
 # strange-eons-gradle-plugin
 
-A Gradle plugin that packages a JVM project as a Strange Eons plug-in bundle
-(`.selibrary`, `.seext`, `.seplugin`, `.setheme`) alongside the plain JAR.
+A Gradle plugin that packages a JVM project, or a script plug-in's project
+folder, as a Strange Eons plug-in bundle (`.selibrary`, `.seext`, `.seplugin`,
+`.setheme`) alongside the plain JAR.
 
 ## Tasks
 
 - **`generateRootFile`** copies the `eons-plugin` root file, stamping each
   catalog ID with the build time (UUID kept) so SE treats every build as an
   update.
-- **`sePlugin`** builds the bundle: main classes and resources, the generated
-  root file, and the runtime classpath, with `META-INF/services` files merged.
-  Part of `assemble`.
+- **`generateVersionProperties`** writes the version properties file, if
+  `versionProperties` is set.
+- **`sePlugin`** builds the bundle: main classes and resources, the plug-in
+  folder, the generated root and version files, and the runtime classpath,
+  with `META-INF/services` files merged. Part of `assemble`.
 - **`installPlugin`** copies the bundle into the SE user `plug-ins` folder,
   if that folder exists.
 
@@ -42,6 +45,34 @@ strangeEonsPlugin {
 ```
 
 The bundle is written to `build/libs/<bundleName>.<bundleType>`.
+
+## Script plug-ins
+
+A plug-in made of scripts and resources keeps them in an SE project folder
+(`eons-plugin`, `resources/`, ...). Point `pluginFolder` at it:
+
+```kotlin
+plugins { id("org.strangeeons.plugin") }
+
+version = "10.0.1"
+
+strangeEonsPlugin {
+    pluginFolder = file("MyGame")
+    versionProperties = "resources/mygame/version.properties"
+}
+```
+
+The folder is packed as SE's *Make Bundle* command packs it: hidden files,
+`seproject`, `*.ts.js` and SE's default excluded names (`Thumbs.db`, `.git*`,
+...) are left out. `rootFile` defaults to the folder's `eons-plugin`, and
+`bundleType` to the type *Make Bundle* would guess, reading the plug-in
+script.
+
+`versionProperties` adds a properties file at that path in the bundle, with
+`version` (the project version) and `se-version` (the float SE plug-ins
+report: `10.0.1` is `10.0`). The project version must be
+`major.minor.patch[-SNAPSHOT]` with a one-digit minor, so that `10.10` can't
+read as `10.1`.
 
 `bundleType` defaults to the type SE's *Make Bundle* command would guess: a
 root file with no plug-in line is a library, a class name containing

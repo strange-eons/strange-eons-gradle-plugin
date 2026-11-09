@@ -2,6 +2,7 @@ package org.strangeeons.gradle.plugin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
@@ -89,5 +90,59 @@ class StrangeEonsPluginTest {
         task.generate();
         String out = Files.readString(task.getRootFile().get().getAsFile().toPath());
         assertTrue(out.startsWith("#CATALOGUEID{abc:") && !out.contains("1-2-3-4-5-6-7"), out);
+    }
+
+    @Test
+    void pluginFolderSuppliesRootFileAndType() throws IOException {
+        Project p = project();
+        Path folder = tmp.resolve("Game");
+        Files.createDirectories(folder.resolve("resources"));
+        Files.writeString(folder.resolve("eons-plugin"), "res://Game.js\n");
+        Files.writeString(folder.resolve("resources/Game.js"), "useLibrary('extension');\n");
+        ext(p).getPluginFolder().set(folder.toFile());
+        assertEquals(folder.resolve("eons-plugin").toFile(), ext(p).getRootFile().get().getAsFile());
+        assertEquals("demo.seext", ((ShadowJar) p.getTasks().getByName("sePlugin")).getArchiveFileName().get());
+    }
+
+    private GenerateVersionProperties versionTask(Project p, String version) {
+        p.setVersion(version);
+        return (GenerateVersionProperties) p.getTasks().getByName("generateVersionProperties");
+    }
+
+    private Path outputDir(GenerateVersionProperties task) {
+        return task.getOutputDir().get().getAsFile().toPath();
+    }
+
+    @Test
+    void writesVersionProperties() throws IOException {
+        Project p = project();
+        ext(p).getVersionProperties().set("resources/game/version.properties");
+        GenerateVersionProperties task = versionTask(p, "10.2.0-SNAPSHOT");
+        task.generate();
+        assertEquals("version=10.2.0-SNAPSHOT\nse-version=10.2\n",
+                Files.readString(outputDir(task).resolve("resources/game/version.properties")));
+    }
+
+    @Test
+    void writesNothingWithoutVersionProperties() throws IOException {
+        Project p = project();
+        GenerateVersionProperties task = versionTask(p, "unspecified");
+        Path stale = outputDir(task).resolve("old/version.properties");
+        Files.createDirectories(stale.getParent());
+        Files.writeString(stale, "x");
+        task.generate();
+        try (var files = Files.list(outputDir(task))) {
+            assertEquals(0, files.count());
+        }
+    }
+
+    @Test
+    void rejectsVersionPropertiesOutsideBundle() {
+        Project p = project();
+        GenerateVersionProperties task = versionTask(p, "1.0.0");
+        for (String path : new String[] {"../version.properties", ".", "a/.."}) {
+            task.getFilePath().set(path);
+            assertThrows(IllegalArgumentException.class, task::generate, path);
+        }
     }
 }
