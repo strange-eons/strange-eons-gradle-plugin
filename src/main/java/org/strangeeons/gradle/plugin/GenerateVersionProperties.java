@@ -13,12 +13,14 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 /**
  * Writes the project version, and the float form SE plug-ins report, as a
  * properties file at {@link #getFilePath()} in the output folder. Writes nothing
  * when the path is unset.
  */
+@DisableCachingByDefault(because = "writes one small file, faster than a cache lookup")
 public abstract class GenerateVersionProperties extends DefaultTask {
 
     /** Path of the file within the bundle, e.g. {@code resources/mygame/version.properties}. */
