@@ -7,7 +7,10 @@ import java.nio.file.Path;
 import java.time.Instant;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -16,14 +19,20 @@ import org.gradle.work.DisableCachingByDefault;
 
 /**
  * Writes the bundle's {@code eons-plugin} root file with each catalog ID
- * stamped with the build time, so SE sees every build as an update.
+ * stamped with {@link #getTime()}, or the build time, so SE sees a newer
+ * bundle as an update.
  */
-@DisableCachingByDefault(because = "output embeds the build time")
+@DisableCachingByDefault(because = "output may embed the build time")
 public abstract class GenerateRootFile extends DefaultTask {
 
     public GenerateRootFile() {
-        getOutputs().upToDateWhen(t -> false);
+        getOutputs().upToDateWhen(t -> getTime().isPresent());
     }
+
+    /** The time to stamp. Optional; the build time if unset, and never up to date. */
+    @Input
+    @Optional
+    public abstract Property<Instant> getTime();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -38,6 +47,6 @@ public abstract class GenerateRootFile extends DefaultTask {
         String text = Files.readString(getSource().get().getAsFile().toPath(), StandardCharsets.ISO_8859_1);
         Path out = getRootFile().get().getAsFile().toPath();
         Files.createDirectories(out.getParent());
-        Files.writeString(out, RootFile.stamp(text, Instant.now()), StandardCharsets.ISO_8859_1);
+        Files.writeString(out, RootFile.stamp(text, getTime().getOrElse(Instant.now())), StandardCharsets.ISO_8859_1);
     }
 }

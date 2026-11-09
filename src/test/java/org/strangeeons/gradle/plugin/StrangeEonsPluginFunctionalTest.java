@@ -1,5 +1,6 @@
 package org.strangeeons.gradle.plugin;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -213,5 +214,34 @@ class StrangeEonsPluginFunctionalTest {
         BuildResult r = GradleRunner.create().withProjectDir(dir.toFile()).withPluginClasspath()
                 .withArguments("sePlugin").buildAndFail();
         assertTrue(r.getOutput().contains("is not a path in the bundle"), r.getOutput());
+    }
+
+    @Test
+    void fixedCatalogTimestampMakesRepeatableBundles() throws IOException {
+        writeScriptPlugin();
+        write("build.gradle.kts", """
+                import java.time.Instant
+                plugins { id("org.strangeeons.plugin") }
+                strangeEonsPlugin {
+                    pluginFolder = layout.projectDirectory.dir("Game")
+                    catalogTimestamp = Instant.parse("2026-01-05T03:04:05.006Z")
+                }
+                """);
+        Path bundle = dir.resolve("build/libs/demo.seext");
+
+        run("sePlugin");
+        byte[] first = Files.readAllBytes(bundle);
+        try (JarFile jar = new JarFile(bundle.toFile())) {
+            assertTrue(text(jar, "eons-plugin").contains(ID + ":2026-0-5-3-4-5-6}"));
+        }
+
+        BuildResult again = run("sePlugin");
+        assertEquals(TaskOutcome.UP_TO_DATE, again.task(":generateRootFile").getOutcome());
+        assertEquals(TaskOutcome.UP_TO_DATE, again.task(":sePlugin").getOutcome());
+
+        run("clean");
+        Files.writeString(dir.resolve("Game/README.md"), "x\n"); // new modification time, same content
+        run("sePlugin");
+        assertArrayEquals(first, Files.readAllBytes(bundle));
     }
 }

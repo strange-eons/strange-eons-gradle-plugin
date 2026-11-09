@@ -1,5 +1,6 @@
 package org.strangeeons.gradle.plugin;
 
+import java.time.Instant;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
@@ -31,11 +32,19 @@ public abstract class StrangeEonsPluginExtension {
     public abstract Property<String> getBundleType();
 
     /**
-     * The {@code eons-plugin} root file. Its catalog ID is stamped with the
-     * build time when packaged. Defaults to the {@link #getPluginFolder()}'s
+     * The {@code eons-plugin} root file. Its catalog ID is stamped with
+     * {@link #getCatalogTimestamp()} when packaged. Defaults to the {@link #getPluginFolder()}'s
      * root file if set, else {@code src/main/resources/eons-plugin}.
      */
     public abstract RegularFileProperty getRootFile();
+
+    /**
+     * The time stamped into the root file's catalog IDs. SE offers a bundle as
+     * an update when this is newer than the installed bundle's. Defaults to
+     * the build time, which makes every build new; a fixed time, such as the
+     * commit time, lets an unchanged project's bundle stay up to date.
+     */
+    public abstract Property<Instant> getCatalogTimestamp();
 
     /**
      * An SE plug-in project folder, holding {@code eons-plugin} and

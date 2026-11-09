@@ -145,4 +145,17 @@ class StrangeEonsPluginTest {
             assertThrows(IllegalArgumentException.class, task::generate, path);
         }
     }
+
+    @Test
+    void stampsConfiguredCatalogTimestamp() throws IOException {
+        Project p = project();
+        Path root = tmp.resolve("src/main/resources/eons-plugin");
+        Files.createDirectories(root.getParent());
+        Files.writeString(root, "#CATALOGUEID{abc:1-2-3-4-5-6-7}\n");
+        ext(p).getCatalogTimestamp().set(java.time.Instant.parse("2026-01-05T03:04:05.006Z"));
+        GenerateRootFile task = (GenerateRootFile) p.getTasks().getByName("generateRootFile");
+        task.generate();
+        assertEquals("#CATALOGUEID{abc:2026-0-5-3-4-5-6}\n",
+                Files.readString(task.getRootFile().get().getAsFile().toPath()));
+    }
 }

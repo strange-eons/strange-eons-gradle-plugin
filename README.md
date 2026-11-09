@@ -7,8 +7,8 @@ folder, as a Strange Eons plug-in bundle (`.selibrary`, `.seext`, `.seplugin`,
 ## Tasks
 
 - **`generateRootFile`** copies the `eons-plugin` root file, stamping each
-  catalog ID with the build time (UUID kept) so SE treats every build as an
-  update.
+  catalog ID with `catalogTimestamp` (UUID kept) so SE treats a newer bundle
+  as an update.
 - **`generateVersionProperties`** writes the version properties file, if
   `versionProperties` is set.
 - **`sePlugin`** builds the bundle: main classes and resources, the plug-in
@@ -45,6 +45,19 @@ strangeEonsPlugin {
 ```
 
 The bundle is written to `build/libs/<bundleName>.<bundleType>`.
+
+`catalogTimestamp` defaults to the build time, so every build is new and
+never up to date. Set it to the commit time to make the same commit build the
+same bundle:
+
+```kotlin
+import java.time.OffsetDateTime
+
+strangeEonsPlugin {
+    catalogTimestamp = providers.exec { commandLine("git", "log", "-1", "--format=%cI") }
+        .standardOutput.asText.map { OffsetDateTime.parse(it.trim()).toInstant() }
+}
+```
 
 ## Script plug-ins
 

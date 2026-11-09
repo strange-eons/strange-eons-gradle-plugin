@@ -29,7 +29,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
  * Eons plug-in bundle alongside the plain JAR:
  *
  * <ul>
- * <li>{@code generateRootFile}: writes {@code eons-plugin} with a fresh catalog ID timestamp</li>
+ * <li>{@code generateRootFile}: writes {@code eons-plugin} with a stamped catalog ID</li>
  * <li>{@code generateVersionProperties}: writes the version properties file, if configured</li>
  * <li>{@code sePlugin}: builds the bundle from the main classes and resources, the plug-in
  * folder and the runtime classpath, merging {@code META-INF/services} (part of
@@ -70,8 +70,9 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
         TaskProvider<GenerateRootFile> generate = project.getTasks().register(GENERATE_ROOT_FILE_TASK_NAME,
                 GenerateRootFile.class, t -> {
                     t.setGroup(GROUP);
-                    t.setDescription("Writes the bundle's eons-plugin root file with a fresh catalog ID timestamp.");
+                    t.setDescription("Writes the bundle's eons-plugin root file with a stamped catalog ID.");
                     t.getSource().set(ext.getRootFile());
+                    t.getTime().set(ext.getCatalogTimestamp());
                     t.getRootFile().set(project.getLayout().getBuildDirectory().file("generated/strange-eons/" + ROOT_FILE_NAME));
                 });
 
@@ -109,6 +110,9 @@ public abstract class StrangeEonsPlugin implements Plugin<Project> {
             t.getArchiveVersion().set("");
             t.getArchiveClassifier().set("");
             t.getArchiveExtension().set(ext.getBundleType());
+            // the same inputs make the same bundle
+            t.setPreserveFileTimestamps(false);
+            t.setReproducibleFileOrder(true);
         });
 
         Provider<Directory> pluginsFolder = ext.getUserFolder().dir("plug-ins");
